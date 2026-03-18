@@ -1,0 +1,53 @@
+workflows:
+  ios-build:
+    name: Juiceify iOS Build
+    max_build_duration: 120
+    instance_type: mac_mini_m1
+
+    environment:
+      node: 20.11.0
+      xcode: latest
+      cocoapods: default
+
+    scripts:
+      - name: Install dependencies
+        script: |
+          cd $CM_BUILD_DIR
+          npm install
+
+      - name: Expo prebuild (generate native iOS project)
+        script: |
+          cd $CM_BUILD_DIR
+          npx expo prebuild --platform ios --clean
+
+      - name: Install CocoaPods
+        script: |
+          cd $CM_BUILD_DIR/ios
+          pod install
+
+      - name: Build iOS IPA (no signing)
+        script: |
+          cd $CM_BUILD_DIR/ios
+          xcodebuild \
+            -workspace juiceify.xcworkspace \
+            -scheme juiceify \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath $CM_BUILD_DIR/build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            clean build
+
+      - name: Package IPA
+        script: |
+          mkdir -p $CM_EXPORT_DIR
+          APP_PATH=$(find $CM_BUILD_DIR/build -name "*.app" | head -1)
+          mkdir -p /tmp/Payload
+          cp -r "$APP_PATH" /tmp/Payload/
+          cd /tmp
+          zip -r $CM_EXPORT_DIR/Juiceify.ipa Payload/
+
+    artifacts:
+      - $CM_EXPORT_DIR/Juiceify.ipa
+      - $CM_BUILD_DIR/build/**/*.dSYM
